@@ -1,2 +1,5 @@
-# app-organizer-helper
-앱정리도우미
+# 앱정리 도우미
+
+갤럭시 앱스 화면의 흩어진 앱을 기존 폴더/새 폴더로 자동 정리하는 개인용 앱 (접근성 서비스).
+
+작업을 이어서 할 때는 [docs/HANDOFF.md](docs/HANDOFF.md)를 먼저 읽으세요.
