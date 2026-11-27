@@ -78,7 +78,7 @@ class OrganizerService : AccessibilityService() {
 
     private fun driver(): LauncherDriver {
         val st = Store(this).settings
-        return LauncherDriver(this, AppRepository.launcherPackage(this), st.delayFactor, { stopRequested }) {
+        return LauncherDriver(this, AppRepository.launcherPackage(this), st.delayFactor, st.target == 0, { stopRequested }) {
             Log.d("Organizer", it)
         }
     }
@@ -92,9 +92,9 @@ class OrganizerService : AccessibilityService() {
         if (busy) return
         stopRequested = false
         job = scope.launch {
-            showOverlay("홈 화면 분석 중")
+            showOverlay(if (Store(this@OrganizerService).settings.target == 0) "앱스 화면 분석 중" else "홈 화면 분석 중")
             try {
-                val r = driver().scan(labels())
+                val r = driver().scan(labels()) { updateOverlay(it, 0, 0) }
                 Store(this@OrganizerService).lastScan = r
                 Bus.events.tryEmit(Bus.Event.ScanDone(r))
             } catch (e: LauncherDriver.CancelledException) {
@@ -111,7 +111,7 @@ class OrganizerService : AccessibilityService() {
         if (busy) return
         stopRequested = false
         job = scope.launch {
-            showOverlay("홈 화면 정리 준비 중")
+            showOverlay("정리 준비 중")
             val names = labels()
             var made = 0; var moved = 0
             val failed = ArrayList<String>()
@@ -121,14 +121,14 @@ class OrganizerService : AccessibilityService() {
                 folders.forEachIndexed { i, f ->
                     val apps = LinkedHashMap<String, String>()
                     f.apps.forEach { p -> names[p]?.let { apps[p] = it } }
-                    if (apps.size < 2) { failed += "${f.name}: 앱이 2개 미만"; return@forEachIndexed }
-                    updateOverlay("${f.name} 폴더 만드는 중 (${i + 1}/${folders.size})", i, folders.size)
-                    val r = d.makeFolder(f.name, apps) { step ->
-                        updateOverlay("${f.name} · $step (${i + 1}/${folders.size})", i, folders.size)
-                    }
+                    if (apps.isEmpty() || (!f.existing && apps.size < 2)) { failed += "${f.name}: 앱이 2개 미만"; return@forEachIndexed }
+                    updateOverlay("${f.name} 폴더 정리 중 (${i + 1}/${folders.size})", i, folders.size)
+                    val step: (String) -> Unit = { st -> updateOverlay("${f.name} · $st (${i + 1}/${folders.size})", i, folders.size) }
+                    val r = if (f.existing) d.addToFolder(f.name, apps, step) else d.makeFolder(f.name, apps, step)
                     method = r.method
-                    if (r.ok) { made++; moved += r.moved } else failed += "${f.name}: 폴더를 만들지 못함"
-                    if (r.missing.isNotEmpty() && r.ok) failed += "${f.name}: 홈 화면에서 못 찾음 - ${r.missing.joinToString()}"
+                    if (r.ok) { if (!f.existing) made++; moved += r.moved }
+                    else failed += if (f.existing) "${f.name}: 폴더에 앱을 넣지 못함" else "${f.name}: 폴더를 만들지 못함"
+                    if (r.missing.isNotEmpty() && r.ok) failed += "${f.name}: 못 찾은 앱 - ${r.missing.joinToString()}"
                 }
                 d.goHome()
                 val rec = RunRecord(System.currentTimeMillis(), made, moved, failed, method)
@@ -150,7 +150,7 @@ class OrganizerService : AccessibilityService() {
         if (busy) return
         stopRequested = false
         job = scope.launch {
-            showOverlay("홈 화면 구조 기록 중")
+            showOverlay("화면 구조 기록 중")
             try {
                 val text = driver().dumpFlow()
                 File(filesDir, "home_dump.txt").writeText(text)

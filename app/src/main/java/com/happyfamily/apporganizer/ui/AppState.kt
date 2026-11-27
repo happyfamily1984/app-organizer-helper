@@ -111,11 +111,13 @@ class AppState(private val ctx: Context) {
 
     // ───────── 추천 ─────────
 
+    val surfaceName get() = if (settings.target == 0) "앱스 화면" else "홈 화면"
+
     fun startRecommend() {
         val svc = Bus.service
         if (settings.homeOnly && svc != null) {
             recommendAfterScan = true
-            busyText = "홈 화면을 분석하고 있어요"
+            busyText = "${surfaceName}을 분석하고 있어요"
             svc.startScan()
         } else buildPlan(null)
     }
@@ -123,13 +125,17 @@ class AppState(private val ctx: Context) {
     fun scanOnly() {
         val svc = Bus.service ?: run { dialog = Dlg.NeedAccess; return }
         recommendAfterScan = false
-        busyText = "홈 화면을 분석하고 있어요"
+        busyText = "${surfaceName}을 분석하고 있어요"
         svc.startScan()
     }
 
     fun buildPlan(homePkgs: List<String>?) {
         val src = if (homePkgs != null) apps.filter { it.pkg in homePkgs.toSet() } else apps
-        updatePlan(Classifier.recommend(src, excluded, settings, homePkgs != null))
+        val scan = lastScan
+        val p = if (homePkgs != null && scan != null && scan.folders.isNotEmpty())
+            Classifier.recommendWithExisting(src, scan.folders, appMap, excluded, settings)
+        else Classifier.recommend(src, excluded, settings, homePkgs != null)
+        updatePlan(p)
         if (screen != Screen.Recommend) go(Screen.Recommend)
     }
 
@@ -158,6 +164,9 @@ class AppState(private val ctx: Context) {
         val f = p.folders.firstOrNull { it.id == id } ?: return
         updatePlan(p.copy(folders = p.folders.filter { it.id != id }, unassigned = p.unassigned + f.apps))
     }
+
+    /** 실제로 적용될 폴더 (기존 폴더는 넣을 앱이 있을 때만) */
+    val activeFolders get() = plan?.folders?.filter { !it.existing || it.apps.isNotEmpty() }.orEmpty()
 
     /** 앱 하나를 다른 폴더/미분류/제외로 옮김 */
     fun move(pkg: String, t: Target) {
@@ -192,8 +201,8 @@ class AppState(private val ctx: Context) {
 
     fun apply() {
         val svc = Bus.service ?: run { dialog = Dlg.NeedAccess; return }
-        val folders = plan?.folders?.filter { it.apps.size >= 2 } ?: return
-        busyText = "홈 화면을 정리하고 있어요"
+        val folders = plan?.folders?.filter { it.apps.size >= (if (it.existing) 1 else 2) } ?: return
+        busyText = "${surfaceName}을 정리하고 있어요"
         svc.startApply(folders)
     }
 
@@ -206,8 +215,8 @@ class AppState(private val ctx: Context) {
                     recommendAfterScan = false
                     if (e.result.homePkgs.isEmpty()) {
                         dialog = Dlg.Message(
-                            "홈 화면에서 앱을 찾지 못했어요",
-                            "설치된 모든 앱을 기준으로 추천할게요.\n홈 화면 앱(런처)에 따라 아이콘을 읽지 못할 수 있어요. 설정 > '홈 화면 구조 기록'을 보내주시면 맞춰 고칠 수 있어요."
+                            "${surfaceName}에서 흩어진 앱을 찾지 못했어요",
+                            "설치된 모든 앱을 기준으로 추천할게요.\n휴대폰에 따라 아이콘을 읽지 못할 수 있어요. 설정 > '화면 구조 기록'을 보내주시면 맞춰 고칠 수 있어요."
                         )
                         buildPlan(null)
                     } else buildPlan(e.result.homePkgs)

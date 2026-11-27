@@ -49,7 +49,7 @@ fun RecommendScreen(s: AppState) {
     ScreenBg {
         Column(Modifier.fillMaxSize().statusBarsPadding()) {
             TopBar(
-                title = { TitleText("추천 폴더 ", "${plan?.folders?.size ?: 0}개") },
+                title = { TitleText("추천 폴더 ", "${s.activeFolders.size}개") },
                 image = R.drawable.hdr_folder,
                 onBack = { s.back() },
             ) {
@@ -66,7 +66,8 @@ fun RecommendScreen(s: AppState) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("추천을 만들어 주세요", color = C.sub) }
                 return@Column
             }
-            val total = plan.folders.sumOf { it.apps.size }
+            val shown = s.activeFolders
+            val total = shown.sumOf { it.apps.size }
             val exCount = s.excluded.count { it in s.appMap }
             Box(Modifier.weight(1f)) {
                 LazyVerticalGrid(
@@ -85,14 +86,21 @@ fun RecommendScreen(s: AppState) {
                             if (!plan.fromHomeScan) {
                                 Gap(10)
                                 Text(
-                                    if (s.accessOn) "설치된 모든 앱 기준 추천이에요. 설정에서 '홈 화면에 있는 앱만 추천'을 켤 수 있어요."
-                                    else "설치된 모든 앱 기준 추천이에요. 접근성을 켜면 홈 화면에 있는 앱만 골라 추천해요.",
+                                    if (s.accessOn) "설치된 모든 앱 기준 추천이에요. 설정에서 '흩어진 앱만 추천'을 켤 수 있어요."
+                                    else "설치된 모든 앱 기준 추천이에요. 접근성을 켜면 ${s.surfaceName}에서 폴더 밖에 있는 앱만 골라, 기존 폴더에 먼저 넣도록 추천해요.",
                                     fontSize = 13.sp, color = C.sub
                                 )
                             }
                         }
                     }
-                    items(plan.folders, key = { it.id }) { f -> FolderCard(s, f) }
+                    if (plan.fromHomeScan && shown.any { it.existing }) item(span = { GridItemSpan(2) }) {
+                        Text("기존 폴더에 넣기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = C.ink, modifier = Modifier.padding(top = 4.dp))
+                    }
+                    items(shown.filter { it.existing }, key = { it.id }) { f -> FolderCard(s, f) }
+                    if (shown.any { it.existing } && shown.any { !it.existing }) item(span = { GridItemSpan(2) }) {
+                        Text("새 폴더 만들기", fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = C.ink, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    items(shown.filter { !it.existing }, key = { it.id }) { f -> FolderCard(s, f) }
                     item {
                         Box(
                             Modifier.fillMaxWidth().heightIn(min = 150.dp)
@@ -109,7 +117,7 @@ fun RecommendScreen(s: AppState) {
                         .navigationBarsPadding()
                         .padding(start = 18.dp, end = 18.dp, top = 24.dp, bottom = 14.dp)
                 ) {
-                    GradientButton("홈 화면에 적용하기", Icons.Filled.CleaningServices, enabled = plan.folders.any { it.apps.size >= 2 }) {
+                    GradientButton("${s.surfaceName}에 적용하기", Icons.Filled.CleaningServices, enabled = shown.any { it.apps.size >= (if (it.existing) 1 else 2) }) {
                         s.requestApply()
                     }
                 }
@@ -125,7 +133,9 @@ private fun FolderCard(s: AppState, f: FolderPlan) {
             Box(Modifier.size(12.dp).clip(CircleShape).background(C.folderColor(f.colorIndex)))
             RowGap(8)
             Text(f.name, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold, color = C.ink, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-            Icon(Icons.Outlined.Sell, "편집", tint = Color(0xFF8C9792), modifier = Modifier.size(20.dp))
+            if (f.existing) Text("기존", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = C.green,
+                modifier = Modifier.clip(RoundedCornerShape(50)).background(C.greenSoft).padding(horizontal = 8.dp, vertical = 2.dp))
+            else Icon(Icons.Outlined.Sell, "편집", tint = Color(0xFF8C9792), modifier = Modifier.size(20.dp))
         }
         Gap(10)
         val shown = f.apps.take(6)
@@ -141,10 +151,10 @@ private fun FolderCard(s: AppState, f: FolderPlan) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Groups, null, tint = C.green, modifier = Modifier.size(18.dp))
             RowGap(6)
-            Text("${f.apps.size}개" + if (f.apps.size > 6) " · +${f.apps.size - 6}" else "", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = C.ink)
+            Text(if (f.existing) "${f.apps.size}개 넣기" else "${f.apps.size}개" + if (f.apps.size > 6) " · +${f.apps.size - 6}" else "", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = C.ink)
             Spacer(Modifier.weight(1f))
             Text("›", fontSize = 22.sp, color = C.sub)
         }
-        if (f.apps.size == 1) Text("앱 1개는 폴더를 만들 수 없어요", fontSize = 11.sp, color = C.orange)
+        if (!f.existing && f.apps.size == 1) Text("앱 1개는 폴더를 만들 수 없어요", fontSize = 11.sp, color = C.orange)
     }
 }

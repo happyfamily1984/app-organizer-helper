@@ -14,6 +14,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.EditCalendar
 import androidx.compose.material.icons.filled.Inventory2
@@ -56,24 +57,13 @@ fun SettingsScreen(s: AppState, openAccess: () -> Unit, askNotify: () -> Unit) {
                 }
                 Gap(12)
                 Card(pad = 16.dp) {
+                    ListRow({ IconTile(Icons.Filled.Apps, Color(0xFF7A5AF0), Color(0xFFEDE7FF), 54.dp) }, "정리할 화면", "앱스 화면은 위로 밀면 나오는 앱 목록이에요")
+                    Seg(listOf("앱스 화면", "홈 화면"), st.target) { s.saveSettings(st.copy(target = it)); s.lastScan = null; s.store.lastScan = null }
+                }
+                Gap(12)
+                Card(pad = 16.dp) {
                     ListRow({ IconTile(Icons.Filled.Speed, C.green, C.greenSoft, 54.dp) }, "정리 속도", "느릴수록 실패가 적어요")
-                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color(0xFFEDF1F3)).padding(4.dp)) {
-                        listOf("빠름", "보통", "천천히").forEachIndexed { i, t ->
-                            val on = st.speed == i
-                            Box(
-                                Modifier.weight(1f)
-                                    .then(if (on) Modifier.shadow(8.dp, RoundedCornerShape(50), spotColor = Color(0x5520B070)) else Modifier)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (on) Brush.horizontalGradient(listOf(C.gradA, C.gradB)) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
-                                    .clickable { s.saveSettings(st.copy(speed = i)) }
-                                    .padding(vertical = 11.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(t, fontSize = 17.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
-                                    color = if (on) Color.White else C.sub, textAlign = TextAlign.Center)
-                            }
-                        }
-                    }
+                    Seg(listOf("빠름", "보통", "천천히"), st.speed) { s.saveSettings(st.copy(speed = it)) }
                 }
                 Gap(26)
                 SectionTitle("정리 방식")
@@ -81,12 +71,12 @@ fun SettingsScreen(s: AppState, openAccess: () -> Unit, askNotify: () -> Unit) {
                 Card(pad = 16.dp) {
                     ListRow(
                         { IconTile(Icons.Filled.VerifiedUser, Color(0xFF2F7BF0), Color(0xFFDDEBFF)) },
-                        "홈 화면에 있는 앱만 추천", "기존 폴더 안의 앱은 건드리지 않기"
+                        "흩어진 앱만 추천", "폴더 밖 앱만 기존 폴더에 넣거나 새로 묶기"
                     ) { GreenSwitch(st.homeOnly) { s.saveSettings(st.copy(homeOnly = it)) } }
                     Divider()
                     ListRow(
                         { IconTile(Icons.Filled.Inventory2, C.green, C.greenSoft) },
-                        "미분류 앱은 '기타' 폴더로", "꺼두면 미분류 앱은 홈에 그대로"
+                        "미분류 앱은 '기타' 폴더로", "꺼두면 미분류 앱은 그대로 둬요"
                     ) { GreenSwitch(st.etcFolder) { s.saveSettings(st.copy(etcFolder = it)) } }
                     Divider()
                     ListRow(
@@ -112,7 +102,7 @@ fun SettingsScreen(s: AppState, openAccess: () -> Unit, askNotify: () -> Unit) {
                     Divider()
                     ListRow(
                         { IconTile(Icons.Filled.Bolt, Color(0xFF2F7BF0), Color(0xFFDDEBFF)) },
-                        "홈 화면 구조 기록 (문제 해결용)",
+                        "화면 구조 기록 (문제 해결용)",
                         "정리가 잘 안 될 때 기록을 만들어 보내주세요",
                         onClick = {
                             val svc = Bus.service
@@ -127,6 +117,27 @@ fun SettingsScreen(s: AppState, openAccess: () -> Unit, askNotify: () -> Unit) {
                     fontSize = 13.sp, color = C.sub, modifier = Modifier.padding(horizontal = 4.dp)
                 )
                 Gap(28)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Seg(items: List<String>, sel: Int, onSel: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color(0xFFEDF1F3)).padding(4.dp)) {
+        items.forEachIndexed { i, t ->
+            val on = sel == i
+            Box(
+                Modifier.weight(1f)
+                    .then(if (on) Modifier.shadow(8.dp, RoundedCornerShape(50), spotColor = Color(0x5520B070)) else Modifier)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (on) Brush.horizontalGradient(listOf(C.gradA, C.gradB)) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .clickable { onSel(i) }
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(t, fontSize = 17.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = if (on) Color.White else C.sub, textAlign = TextAlign.Center)
             }
         }
     }

@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         CircularProgressIndicator(color = C.green)
                         Text(t, modifier = Modifier.padding(top = 16.dp), fontWeight = FontWeight.Bold, color = C.ink)
-                        Text("잠시 홈 화면으로 이동해요. 화면을 만지지 마세요.", fontSize = 13.sp, color = C.sub, modifier = Modifier.padding(top = 6.dp))
+                        Text("잠시 ${s.surfaceName}으로 이동해요. 화면을 만지지 마세요.", fontSize = 13.sp, color = C.sub, modifier = Modifier.padding(top = 6.dp))
                         TextButton(onClick = { Bus.service?.stop(); s.busyText = null }) { Text("중지", color = C.red) }
                     }
                 }
@@ -201,7 +201,7 @@ class MainActivity : ComponentActivity() {
                 onDismissRequest = close, title = { Text("접근성 권한을 켜 주세요") },
                 text = {
                     Column(Modifier.verticalScroll(rememberScrollState())) {
-                        Text("홈 화면 아이콘을 대신 옮기려면 접근성 권한이 필요해요.\n")
+                        Text("앱 아이콘을 대신 폴더에 옮기려면 접근성 권한이 필요해요.\n")
                         Text("1. 아래 '접근성 설정 열기'를 누르세요")
                         Text("2. 설치된 앱(또는 다운로드한 앱) → 앱정리 도우미")
                         Text("3. 스위치를 켜고 '허용'을 누르세요\n")
@@ -213,11 +213,13 @@ class MainActivity : ComponentActivity() {
                 containerColor = Color.White,
             )
             Dlg.ConfirmApply -> {
-                val fs = s.plan?.folders?.filter { it.apps.size >= 2 }.orEmpty()
+                val fs = s.plan?.folders?.filter { it.apps.size >= (if (it.existing) 1 else 2) }.orEmpty()
+                val ex = fs.filter { it.existing }; val nw = fs.filter { !it.existing }
                 AlertDialog(
-                    onDismissRequest = close, title = { Text("홈 화면에 적용할까요?") },
+                    onDismissRequest = close, title = { Text("${s.surfaceName}에 적용할까요?") },
                     text = {
-                        Text("폴더 ${fs.size}개(앱 ${fs.sumOf { it.apps.size }}개)를 홈 화면에 만들어요.\n\n" +
+                        Text((if (ex.isNotEmpty()) "기존 폴더 ${ex.size}개에 앱 ${ex.sumOf { it.apps.size }}개를 넣고\n" else "") +
+                            (if (nw.isNotEmpty()) "새 폴더 ${nw.size}개(앱 ${nw.sumOf { it.apps.size }}개)를 만들어요.\n\n" else "\n") +
                             "• 정리하는 동안 휴대폰이 스스로 움직여요. 화면을 만지지 마세요.\n" +
                             "• 위쪽의 '중지'를 누르면 언제든 멈춰요.\n" +
                             "• 이미 폴더 안에 있는 앱과 제외한 앱은 건드리지 않아요.")
@@ -236,16 +238,16 @@ class MainActivity : ComponentActivity() {
             )
             is Dlg.Result -> AlertDialog(
                 onDismissRequest = close,
-                title = { Text(if (d.rec.foldersMade > 0) "정리를 마쳤어요" else "정리하지 못했어요") },
+                title = { Text(if (d.rec.appsMoved > 0) "정리를 마쳤어요" else "정리하지 못했어요") },
                 text = {
                     Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                        Text("폴더 ${d.rec.foldersMade}개를 만들고 앱 ${d.rec.appsMoved}개를 넣었어요.", fontWeight = FontWeight.Bold)
+                        Text("앱 ${d.rec.appsMoved}개를 폴더에 넣었어요." + if (d.rec.foldersMade > 0) " (새 폴더 ${d.rec.foldersMade}개)" else "", fontWeight = FontWeight.Bold)
                         if (d.rec.failed.isNotEmpty()) {
                             Text("\n확인이 필요한 항목", color = C.orange, fontWeight = FontWeight.Bold)
                             d.rec.failed.forEach { Text("• $it", fontSize = 14.sp) }
                         }
-                        if (d.rec.foldersMade == 0) {
-                            Text("\n설정 > '홈 화면 구조 기록'을 만들어 보내주시면 이 휴대폰에 맞게 고칠 수 있어요.", fontSize = 13.sp, color = C.sub)
+                        if (d.rec.appsMoved == 0) {
+                            Text("\n설정 > '화면 구조 기록'을 만들어 보내주시면 이 휴대폰에 맞게 고칠 수 있어요.", fontSize = 13.sp, color = C.sub)
                         }
                     }
                 },
@@ -288,7 +290,7 @@ class MainActivity : ComponentActivity() {
             )
             is Dlg.DeleteFolder -> AlertDialog(
                 onDismissRequest = close, title = { Text("폴더를 해체할까요?") },
-                text = { Text("이 폴더의 앱은 미분류로 옮겨져요. 홈 화면에는 아직 아무 변화가 없어요.") },
+                text = { Text("이 폴더의 앱은 미분류로 옮겨져요. 휴대폰 화면에는 아직 아무 변화가 없어요.") },
                 confirmButton = { TextButton({ close(); s.deleteFolder(d.id); s.back() }) { Text("해체") } },
                 dismissButton = { TextButton(close) { Text("취소") } },
                 containerColor = Color.White,

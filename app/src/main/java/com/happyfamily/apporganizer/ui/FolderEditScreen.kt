@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -71,15 +72,16 @@ fun FolderEditScreen(s: AppState, id: String) {
                     modifier = Modifier.clip(RoundedCornerShape(50)).clickable { done() }.padding(10.dp))
             }
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
-                if (f.name != "금융") {
-                    // 폴더 색 표시
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)) {
-                        IconTile(Icons.Filled.Folder, Color.White, C.folderColor(f.colorIndex), 34.dp)
-                        RowGap(8)
-                        Text("앱 ${f.apps.size}개 · 홈 화면에 이 이름으로 폴더가 만들어져요", fontSize = 13.sp, color = C.sub)
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)) {
+                    IconTile(Icons.Filled.Folder, Color.White, C.folderColor(f.colorIndex), 34.dp)
+                    RowGap(8)
+                    Text(
+                        if (f.existing) "이미 있는 폴더예요 · 아래 앱 ${f.apps.size}개를 이 폴더에 넣어요"
+                        else "새 폴더 · 이 이름으로 ${s.surfaceName}에 만들어져요",
+                        fontSize = 13.sp, color = C.sub
+                    )
                 }
-                Card(pad = 18.dp) {
+                if (!f.existing) Card(pad = 18.dp) {
                     Text("폴더 이름", fontSize = 14.sp, color = C.sub)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         BasicTextField(
@@ -107,7 +109,7 @@ fun FolderEditScreen(s: AppState, id: String) {
                             Text("앱 추가", fontWeight = FontWeight.Bold, color = C.green)
                         }
                     }
-                    Box(
+                    if (!f.existing) Box(
                         Modifier.weight(1f).clip(RoundedCornerShape(16.dp)).background(C.orangeSoft)
                             .clickable { s.dialog = Dlg.DeleteFolder(id) }.padding(14.dp),
                         contentAlignment = Alignment.Center
@@ -176,7 +178,7 @@ private fun ReorderList(s: AppState, id: String) {
                 )
             }
         } }
-        if (f.apps.isEmpty()) Text("폴더가 비어 있어요. '앱 추가'로 넣어주세요.", color = C.sub, modifier = Modifier.padding(8.dp))
+        if (f.apps.isEmpty()) Text(if (f.existing) "이 폴더에 새로 넣을 앱이 없어요. '앱 추가'로 넣을 수 있어요." else "폴더가 비어 있어요. '앱 추가'로 넣어주세요.", color = C.sub, modifier = Modifier.padding(8.dp))
     }
 }
 
@@ -195,8 +197,10 @@ fun MoveSheetContent(s: AppState, pkg: String, close: () -> Unit) {
             }
         }
         Gap(12)
-        s.plan?.folders?.filter { it.id != cur?.id }?.forEach { f ->
-            SheetOption(f.name, C.folderColor(f.colorIndex)) { s.move(pkg, Target.ToFolder(f.id)); close() }
+        Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+            s.plan?.folders?.filter { it.id != cur?.id }?.sortedBy { if (it.existing) 0 else 1 }?.forEach { f ->
+                SheetOption(f.name + if (f.existing) "  · 기존" else "", C.folderColor(f.colorIndex)) { s.move(pkg, Target.ToFolder(f.id)); close() }
+            }
         }
         SheetOption("+ 새 폴더 만들기", Color(0xFF9DAAA9)) { close(); s.dialog = Dlg.NewFolder(pkg) }
         if (cur != null) SheetOption("미분류로 빼기", Color(0xFFB8C2BF)) { s.move(pkg, Target.Unassign); close() }

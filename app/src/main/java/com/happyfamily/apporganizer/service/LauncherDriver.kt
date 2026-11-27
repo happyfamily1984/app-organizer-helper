@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
+import com.happyfamily.apporganizer.data.ExistingFolder
 import com.happyfamily.apporganizer.data.ScanResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -24,6 +25,8 @@ class LauncherDriver(
     private val svc: AccessibilityService,
     private val launcherPkg: String?,
     private val factor: Float,
+    /** true = 앱스 화면, false = 홈 화면 */
+    private val appsScreen: Boolean,
     private val cancelled: () -> Boolean,
     private val log: (String) -> Unit,
 ) {
@@ -40,6 +43,9 @@ class LauncherDriver(
     private val H get() = screen.height()
 
     private val SELECT_WORDS = listOf("선택", "항목 선택", "여러 항목 선택", "Select", "Select items")
+    private val ADD_APPS_WORDS = listOf("앱 추가", "앱추가", "Add apps", "Add app", "추가")
+    private val DONE_WORDS = listOf("완료", "추가", "확인", "Done", "Add", "OK")
+    private val SEARCH_WORDS = listOf("검색", "Search", "앱 검색", "Search apps")
     private val CREATE_FOLDER_WORDS = listOf("폴더 만들기", "폴더 생성", "폴더로 묶기", "Create folder", "Add to folder")
 
     // ───────── 기본 도구 ─────────
@@ -256,29 +262,190 @@ class LauncherDriver(
         return after != before
     }
 
-    suspend fun goFirstPage() {
+    class SurfaceException(msg: String) : Exception(msg)
+
+    private fun isAppsScreen(): Boolean {
+        for (n in launcherRoots().flatMap { flatten(it) }) {
+            if (!n.isVisibleToUser) continue
+            val id = n.viewIdResourceName?.lowercase() ?: ""
+            if (id.contains("apps_") || id.contains("all_apps") || id.contains("apps_view") || id.contains("appsview")) return true
+            val nm = n.name()?.let { norm(it) } ?: continue
+            if (SEARCH_WORDS.any { norm(it) == nm } && n.rect().centerY() > H * 0.6) return true
+        }
+        return false
+    }
+
+    /** 앱스 화면(또는 홈 화면)을 열기 */
+    suspend fun openSurface() {
         goHome()
+        if (!appsScreen) return
+        repeat(3) {
+            if (isAppsScreen()) return
+            swipe(W / 2f, H * 0.72f, W / 2f, H * 0.18f, 260)
+            pause(1000)
+        }
+        if (!isAppsScreen()) {
+            log("앱스 화면 확인 실패 - 그래도 진행")
+        }
+    }
+
+    suspend fun goFirstPage() {
+        openSurface()
         repeat(12) { if (!turnPage(false)) return }
+    }
+
+    private suspend fun goToPage(n: Int) {
+        goFirstPage()
+        repeat(n) { turnPage(true) }
+    }
+
+    private fun currentPkg(): String? = svc.rootInActiveWindow?.packageName?.toString()
+
+    /** 폴더 안이 열렸는지 (폴더 이름 칸 또는 '앱 추가' 버튼) */
+    private fun folderOpen(): Boolean = findEditText() != null || findByWords(ADD_APPS_WORDS.take(4)) != null
+
+    private fun folderNameMatches(iconName: String, folderName: String): Boolean {
+        val f = norm(folderName)
+        if (norm(iconName) == f) return true
+        return iconName.split(',', ':', '\n').any { norm(it) == f }
     }
 
     // ───────── 홈 화면 분석 ─────────
 
-    suspend fun scan(labels: Map<String, String>): ScanResult {
+    suspend fun scan(labels: Map<String, String>, onStep: (String) -> Unit = {}): ScanResult {
         goFirstPage()
-        var pages = 0; var folders = 0
+        var pages = 0
         val found = LinkedHashSet<String>()
+        val folders = ArrayList<ExistingFolder>()
         val seenFolders = HashSet<String>()
         while (pages < 15) {
             pages++
-            for (ic in visibleIcons()) {
-                if (ic.isFolder) { if (seenFolders.add(norm(ic.name) + pages)) folders++; continue }
-                pkgFor(ic.name, labels, found)?.let(found::add)
+            val icons = visibleIcons()
+            val pageLoose = HashSet<String>()
+            val folderIcons = ArrayList<Icon>()
+            for (ic in icons) {
+                val pkg = pkgFor(ic.name, labels, found)
+                if (!ic.isFolder && pkg != null) { found += pkg; pageLoose += pkg }
+                else if (ic.isFolder || pkg == null) folderIcons += ic
             }
-            log("페이지 $pages: 앱 ${found.size}개, 폴더 $folders 개")
+            log("페이지 $pages: 흩어진 앱 ${found.size}개, 폴더 후보 ${folderIcons.size}개")
+            // 폴더 안 앱 읽기 (어느 폴더에 넣을지 판단하는 데 사용)
+            for (fi in folderIcons) {
+                val fname = fi.name.split(',').first().removePrefix("폴더:").trim()
+                if (!seenFolders.add(norm(fname))) continue
+                onStep("폴더 읽는 중: $fname")
+                val cur = visibleIcons().firstOrNull { norm(it.name) == norm(fi.name) } ?: continue
+                click(cur.node)
+                pause(900)
+                if (currentPkg() != null && launcherPkg != null && currentPkg() != launcherPkg) {
+                    // 폴더가 아니라 앱이 열림 → 돌아오기
+                    log("$fname 은(는) 폴더가 아님")
+                    goToPage(pages - 1)
+                    continue
+                }
+                if (!folderOpen() && !fi.isFolder) { continue }
+                val inside = LinkedHashSet<String>()
+                for (ic in visibleIcons()) {
+                    val pk = labels.entries.firstOrNull { (p, l) -> p !in pageLoose && matches(ic.name, l) }?.key
+                    if (pk != null) inside += pk
+                }
+                folders += ExistingFolder(fname, inside.toList())
+                svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
+                pause(700)
+                if (folderOpen()) { svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(600) }
+                // 원래 페이지가 안 보이면 다시 찾아가기
+                if (visibleIcons().none { norm(it.name) == norm(fi.name) }) goToPage(pages - 1)
+            }
             if (!turnPage(true)) break
         }
         goHome()
-        return ScanResult(System.currentTimeMillis(), pages, found.size, folders, found.toList(), launcherPkg ?: "")
+        return ScanResult(System.currentTimeMillis(), pages, found.size, folders.size, found.toList(), launcherPkg ?: "",
+            folders, if (appsScreen) 0 else 1)
+    }
+
+    /** 기존 폴더를 찾아 열고 '앱 추가'로 앱을 넣기 */
+    suspend fun addToFolder(folderName: String, apps: LinkedHashMap<String, String>, onStep: (String) -> Unit): FolderResult {
+        goFirstPage()
+        var opened = false
+        for (page in 0 until 15) {
+            val ic = visibleIcons().firstOrNull { folderNameMatches(it.name, folderName) }
+            if (ic != null) {
+                onStep("$folderName 폴더 여는 중")
+                click(ic.node); pause(1000)
+                opened = true
+                break
+            }
+            if (!turnPage(true)) break
+        }
+        if (!opened) return FolderResult(0, apps.values.toList(), false, "앱 추가")
+        val add = findByWords(ADD_APPS_WORDS)
+        if (add == null) {
+            log("'앱 추가' 버튼을 찾지 못함")
+            svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(600)
+            return FolderResult(0, apps.values.toList(), false, "앱 추가")
+        }
+        click(add); pause(1200)
+        val remaining = LinkedHashMap(apps)
+        var picked = 0
+        // 1) 목록을 내리면서 체크
+        var guard = 0
+        while (remaining.isNotEmpty() && guard < 30) {
+            guard++
+            var clicked = true
+            while (clicked) {
+                clicked = false
+                val nodes = roots().flatMap { flatten(it) }.filter { it.isVisibleToUser }
+                for ((pkg, label) in remaining.entries.toList()) {
+                    val n = nodes.firstOrNull { nd -> nd.name()?.let { matches(it, label) } == true } ?: continue
+                    onStep("$label 체크")
+                    if (!(n.isChecked)) click(n)
+                    pause(350)
+                    remaining.remove(pkg); picked++; clicked = true
+                    break
+                }
+            }
+            if (remaining.isEmpty()) break
+            val before = roots().flatMap { flatten(it) }.mapNotNull { it.name() }.joinToString("|").hashCode()
+            val sc = roots().flatMap { flatten(it) }.filter { it.isScrollable && it.isVisibleToUser }
+                .maxByOrNull { val r = it.rect(); r.width().toLong() * r.height() }
+            if (sc?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD) != true) {
+                swipe(W / 2f, H * 0.75f, W / 2f, H * 0.35f, 350)
+            }
+            pause(700)
+            val after = roots().flatMap { flatten(it) }.mapNotNull { it.name() }.joinToString("|").hashCode()
+            if (after == before) break
+        }
+        // 2) 못 찾은 앱은 검색칸으로 찾기
+        if (remaining.isNotEmpty()) {
+            val search = findEditText()
+            if (search != null) {
+                for ((pkg, label) in remaining.entries.toList()) {
+                    onStep("$label 검색")
+                    val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, label) }
+                    findEditText()?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                    pause(900)
+                    val n = roots().flatMap { flatten(it) }.firstOrNull { nd ->
+                        nd.isVisibleToUser && !nd.isEditable && nd.name()?.let { matches(it, label) } == true
+                    }
+                    if (n != null) { if (!n.isChecked) click(n); pause(400); remaining.remove(pkg); picked++ }
+                }
+                val clear = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, "") }
+                findEditText()?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, clear)
+                pause(500)
+            }
+        }
+        if (picked == 0) {
+            svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(600)
+            svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(600)
+            return FolderResult(0, apps.values.toList(), false, "앱 추가")
+        }
+        onStep("완료 누르는 중")
+        val done = findByWords(DONE_WORDS)
+        if (done != null) click(done) else log("'완료' 버튼을 찾지 못함")
+        pause(1100)
+        // 폴더 닫기
+        if (folderOpen()) { svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(700) }
+        return FolderResult(picked, remaining.values.toList(), done != null, "앱 추가")
     }
 
     private fun pkgFor(iconName: String, labels: Map<String, String>, taken: Set<String>): String? {
@@ -454,11 +621,25 @@ class LauncherDriver(
 
     suspend fun dumpFlow(): String {
         val sb = StringBuilder()
-        goHome()
-        sb.append(dumpScreen("홈 첫 화면"))
+        openSurface()
+        sb.append("앱스 화면 인식: ").append(isAppsScreen()).append("\n")
+        sb.append(dumpScreen(if (appsScreen) "앱스 화면 첫 페이지" else "홈 첫 화면"))
         val icons = visibleIcons()
         sb.append("\n인식된 아이콘 ${icons.size}개: ").append(icons.joinToString { (if (it.isFolder) "[폴더]" else "") + it.name }).append("\n\n")
-        val first = icons.firstOrNull { !it.isFolder }
+        val folder = icons.firstOrNull { it.isFolder }
+        if (folder != null) {
+            click(folder.node); pause(1000)
+            sb.append(dumpScreen("폴더 열기: ${folder.name}"))
+            val add = findByWords(ADD_APPS_WORDS)
+            if (add != null) {
+                click(add); pause(1200)
+                sb.append(dumpScreen("폴더 앱 추가 화면"))
+                svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(700)
+            } else sb.append("\n('앱 추가' 버튼을 찾지 못함)\n")
+            svc.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK); pause(700)
+            openSurface()
+        } else sb.append("\n(폴더로 인식된 아이콘 없음)\n")
+        val first = visibleIcons().firstOrNull { !it.isFolder }
         if (first != null) {
             longClick(first.node); pause(1000)
             sb.append(dumpScreen("아이콘 길게 누름: ${first.name}"))

@@ -17,8 +17,12 @@ data class FolderPlan(
     val name: String,
     val colorIndex: Int,
     val apps: List<String>,
-    /** 분류 근거 (pkg -> "카테고리: 금융" 등) 는 화면에서 다시 계산 */
+    /** 이미 앱스 화면에 있는 폴더 (앱만 추가) */
+    val existing: Boolean = false,
 )
+
+/** 앱스 화면에 이미 있는 폴더와 그 안의 앱(읽은 만큼) */
+data class ExistingFolder(val name: String, val pkgs: List<String>)
 
 data class Plan(
     val folders: List<FolderPlan>,
@@ -32,10 +36,13 @@ data class ScanResult(
     val time: Long,
     val pages: Int,
     val looseIcons: Int,
-    val folders: Int,
-    /** 홈 화면(폴더 밖)에서 찾은 앱 패키지 */
+    val folderCount: Int,
+    /** 폴더 밖에 흩어진 앱 패키지 */
     val homePkgs: List<String>,
     val launcher: String,
+    val folders: List<ExistingFolder> = emptyList(),
+    /** 0=앱스 화면 1=홈 화면 */
+    val surface: Int = 0,
 )
 
 data class RunRecord(
@@ -53,6 +60,8 @@ data class Settings(
     val etcFolder: Boolean = false,
     val homeOnly: Boolean = true,
     val notifyNewApps: Boolean = false,
+    /** 정리할 화면 0=앱스 화면 1=홈 화면 */
+    val target: Int = 0,
 ) {
     val delayFactor: Float get() = when (speed) { 0 -> 0.7f; 2 -> 1.8f; else -> 1f }
 }

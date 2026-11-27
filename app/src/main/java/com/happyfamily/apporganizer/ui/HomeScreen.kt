@@ -105,9 +105,9 @@ fun HomeScreen(s: AppState, openAccess: () -> Unit) {
                     Icon(Icons.Filled.Eco, null, tint = C.green, modifier = Modifier.size(20.dp))
                     RowGap(10)
                     if (scan == null) {
-                        Text("눌러서 홈 화면을 분석하면 정리율을 보여드려요", fontSize = 14.sp, color = C.sub)
+                        Text("눌러서 ${s.surfaceName}을 분석하면 정리율을 보여드려요", fontSize = 14.sp, color = C.sub)
                     } else {
-                        Text("홈 화면 ${scan.pages}페이지 중 정리된 비율 ", fontSize = 14.sp, color = C.ink)
+                        Text((if (scan.surface == 0) "앱스 화면" else "홈 화면") + " ${scan.pages}페이지 · 정리된 비율 ", fontSize = 14.sp, color = C.ink)
                         Text("${(ratio * 100).toInt()}%", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, color = C.green)
                     }
                 }

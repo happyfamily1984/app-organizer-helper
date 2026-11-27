@@ -14,7 +14,7 @@ import androidx.core.graphics.createBitmap
 
 object AppRepository {
 
-    /** 런처에 보이는 모든 앱 (이 앱 자신 제외) */
+    /** 런처에 보이는 모든 앱 */
     fun loadApps(ctx: Context): List<AppItem> {
         val pm = ctx.packageManager
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -23,7 +23,7 @@ object AppRepository {
         val out = ArrayList<AppItem>()
         for (ri in list) {
             val pkg = ri.activityInfo.packageName
-            if (pkg == ctx.packageName || !seen.add(pkg)) continue
+            if (!seen.add(pkg)) continue
             val label = ri.loadLabel(pm).toString().trim()
             val ai = ri.activityInfo.applicationInfo
             val installed = try {

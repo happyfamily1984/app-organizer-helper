@@ -27,11 +27,12 @@ class Store(ctx: Context) {
             etcFolder = sp.getBoolean("etcFolder", false),
             homeOnly = sp.getBoolean("homeOnly", true),
             notifyNewApps = sp.getBoolean("notifyNew", false),
+            target = sp.getInt("target", 0),
         )
         set(s) = sp.edit()
             .putInt("speed", s.speed).putInt("minApps", s.minApps)
             .putBoolean("etcFolder", s.etcFolder).putBoolean("homeOnly", s.homeOnly)
-            .putBoolean("notifyNew", s.notifyNewApps).apply()
+            .putBoolean("notifyNew", s.notifyNewApps).putInt("target", s.target).apply()
 
     var plan: Plan?
         get() = sp.getString("plan", null)?.let { runCatching { planFrom(JSONObject(it)) }.getOrNull() }
@@ -41,12 +42,16 @@ class Store(ctx: Context) {
         get() = sp.getString("scan", null)?.let {
             runCatching {
                 val o = JSONObject(it)
-                ScanResult(o.getLong("t"), o.getInt("p"), o.getInt("l"), o.getInt("f"), o.getJSONArray("h").strings(), o.optString("ln"))
+                val fa = o.optJSONArray("fl") ?: JSONArray()
+                val fl = List(fa.length()) { val f = fa.getJSONObject(it); ExistingFolder(f.getString("n"), f.getJSONArray("a").strings()) }
+                ScanResult(o.getLong("t"), o.getInt("p"), o.getInt("l"), o.getInt("f"), o.getJSONArray("h").strings(), o.optString("ln"), fl, o.optInt("s"))
             }.getOrNull()
         }
         set(s) = sp.edit().putString("scan", s?.let {
-            JSONObject().put("t", it.time).put("p", it.pages).put("l", it.looseIcons).put("f", it.folders)
-                .put("h", JSONArray(it.homePkgs)).put("ln", it.launcher).toString()
+            JSONObject().put("t", it.time).put("p", it.pages).put("l", it.looseIcons).put("f", it.folderCount)
+                .put("h", JSONArray(it.homePkgs)).put("ln", it.launcher).put("s", it.surface)
+                .put("fl", JSONArray().apply { it.folders.forEach { f -> put(JSONObject().put("n", f.name).put("a", JSONArray(f.pkgs))) } })
+                .toString()
         }).apply()
 
     var lastRun: RunRecord?
@@ -68,7 +73,7 @@ class Store(ctx: Context) {
         .put("u", JSONArray(p.unassigned))
         .put("f", JSONArray().apply {
             p.folders.forEach { f ->
-                put(JSONObject().put("id", f.id).put("n", f.name).put("c", f.colorIndex).put("a", JSONArray(f.apps)))
+                put(JSONObject().put("id", f.id).put("n", f.name).put("c", f.colorIndex).put("a", JSONArray(f.apps)).put("e", f.existing))
             }
         })
 
@@ -76,7 +81,7 @@ class Store(ctx: Context) {
         val fa = o.getJSONArray("f")
         val folders = List(fa.length()) {
             val f = fa.getJSONObject(it)
-            FolderPlan(f.getString("id"), f.getString("n"), f.getInt("c"), f.getJSONArray("a").strings())
+            FolderPlan(f.getString("id"), f.getString("n"), f.getInt("c"), f.getJSONArray("a").strings(), f.optBoolean("e"))
         }
         return Plan(folders, o.getJSONArray("u").strings(), o.optBoolean("home"), o.optLong("t"))
     }
