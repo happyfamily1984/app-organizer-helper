@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">앱정리 도우미</string>
+    <string name="acc_desc">앱정리 도우미가 홈 화면 아이콘을 읽고, 추천한 폴더로 대신 옮겨 정리합니다. 정리 버튼을 눌렀을 때만 동작하며 화면 내용을 저장하거나 외부로 보내지 않습니다.</string>
+</resources>
