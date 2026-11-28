@@ -11,6 +11,13 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -33,12 +40,10 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.lightColorScheme
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -176,10 +182,28 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        s.sheetPkg?.let { pkg ->
-            val st = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ModalBottomSheet(onDismissRequest = { s.sheetPkg = null }, sheetState = st, containerColor = Color.White) {
-                MoveSheetContent(s, pkg) { s.sheetPkg = null }
+        // 앱 이동 시트: 직접 만든 패널 (끌어내리기 제스처와 목록 스크롤이 충돌하지 않도록)
+        AnimatedVisibility(s.sheetPkg != null, enter = fadeIn(), exit = fadeOut()) {
+            Box(Modifier.fillMaxSize().background(Color(0x66000000)).clickable(
+                interactionSource = remember { MutableInteractionSource() }, indication = null
+            ) { s.sheetPkg = null })
+        }
+        AnimatedVisibility(
+            s.sheetPkg != null, modifier = Modifier.fillMaxSize(),
+            enter = slideInVertically { it }, exit = slideOutVertically { it },
+        ) {
+            var last by remember { mutableStateOf<String?>(null) }
+            s.sheetPkg?.let { last = it }
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                Box(
+                    Modifier.fillMaxWidth().fillMaxHeight(0.85f).wrapContentHeight(Alignment.Bottom)
+                        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+                        .background(Color.White)
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {}
+                        .navigationBarsPadding()
+                ) {
+                    last?.let { pkg -> MoveSheetContent(s, pkg) { s.sheetPkg = null } }
+                }
             }
         }
 

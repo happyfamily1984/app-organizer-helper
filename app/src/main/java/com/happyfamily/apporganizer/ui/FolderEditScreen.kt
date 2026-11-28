@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -187,42 +190,48 @@ private fun ReorderList(s: AppState, id: String) {
 fun MoveSheetContent(s: AppState, pkg: String, close: () -> Unit) {
     val a = s.appMap[pkg]
     val cur = s.plan?.folders?.firstOrNull { pkg in it.apps }
-    Column(Modifier.fillMaxWidth().padding(horizontal = 22.dp).padding(bottom = 24.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AppIcon(a?.icon, a?.label ?: pkg, 56.dp)
-            RowGap(16)
-            Column {
-                Text(a?.label ?: pkg, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = C.ink)
-                Text("어디로 옮길까요?", fontSize = 15.sp, color = C.sub)
+    val targets = s.plan?.folders?.filter { it.id != cur?.id }?.sortedBy { if (it.existing) 0 else 1 }.orEmpty()
+    // 시트 전체를 스크롤 목록 하나로 (중첩 스크롤 충돌 방지)
+    LazyColumn(Modifier.fillMaxWidth().padding(horizontal = 22.dp), contentPadding = PaddingValues(bottom = 24.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 18.dp)) {
+                AppIcon(a?.icon, a?.label ?: pkg, 56.dp)
+                RowGap(16)
+                Column(Modifier.weight(1f)) {
+                    Text(a?.label ?: pkg, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = C.ink)
+                    Text("어디로 옮길까요?", fontSize = 15.sp, color = C.sub)
+                }
+                Text("닫기", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = C.sub,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).clickable { close() }.padding(10.dp))
             }
+            Gap(12)
         }
-        Gap(12)
-        Column(Modifier.heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
-            s.plan?.folders?.filter { it.id != cur?.id }?.sortedBy { if (it.existing) 0 else 1 }?.forEach { f ->
-                SheetOption(f.name + if (f.existing) "  · 기존" else "", C.folderColor(f.colorIndex)) { s.move(pkg, Target.ToFolder(f.id)); close() }
-            }
+        items(targets, key = { it.id }) { f ->
+            SheetOption(f.name + if (f.existing) "  · 기존" else "", C.folderColor(f.colorIndex)) { s.move(pkg, Target.ToFolder(f.id)); close() }
         }
-        SheetOption("+ 새 폴더 만들기", Color(0xFF9DAAA9)) { close(); s.dialog = Dlg.NewFolder(pkg) }
-        if (cur != null) SheetOption("미분류로 빼기", Color(0xFFB8C2BF)) { s.move(pkg, Target.Unassign); close() }
-        Gap(6)
-        Divider()
-        Gap(10)
-        if (pkg in s.excluded) {
-            Row(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.greenSoft)
-                    .clickable { s.setExcluded(pkg, false); close() }.padding(14.dp),
+        item {
+            SheetOption("+ 새 폴더 만들기", Color(0xFF9DAAA9)) { close(); s.dialog = Dlg.NewFolder(pkg) }
+            if (cur != null) SheetOption("미분류로 빼기", Color(0xFFB8C2BF)) { s.move(pkg, Target.Unassign); close() }
+            Gap(6)
+            Divider()
+            Gap(10)
+            if (pkg in s.excluded) {
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(C.greenSoft)
+                        .clickable { s.setExcluded(pkg, false); close() }.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) { Text("제외 해제 (다시 정리 대상으로)", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.green) }
+            } else Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFFFFF1EC))
+                    .clickable { s.move(pkg, Target.Exclude); close() }.padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically
-            ) { Text("제외 해제 (다시 정리 대상으로)", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.green) }
-        } else Row(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(Color(0xFFFFF1EC))
-                .clickable { s.move(pkg, Target.Exclude); close() }.padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(C.orangeSoft), contentAlignment = Alignment.Center) {
-                Text("⊘", fontSize = 22.sp, color = C.red, fontWeight = FontWeight.Bold)
+            ) {
+                Box(Modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(C.orangeSoft), contentAlignment = Alignment.Center) {
+                    Text("⊘", fontSize = 22.sp, color = C.red, fontWeight = FontWeight.Bold)
+                }
+                RowGap(14)
+                Text("정리에서 제외 (그대로 두기)", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.red)
             }
-            RowGap(14)
-            Text("정리에서 제외 (홈에 그대로 두기)", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = C.red)
         }
     }
 }
