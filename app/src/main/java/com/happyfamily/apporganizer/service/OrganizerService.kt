@@ -115,6 +115,7 @@ class OrganizerService : AccessibilityService() {
             val names = labels()
             var made = 0; var moved = 0
             val failed = ArrayList<String>()
+            val movedPairs = ArrayList<Pair<String, String>>()
             var method = ""
             try {
                 val d = driver()
@@ -126,16 +127,19 @@ class OrganizerService : AccessibilityService() {
                     val step: (String) -> Unit = { st -> updateOverlay("${f.name} · $st (${i + 1}/${folders.size})", i, folders.size) }
                     val r = if (f.existing) d.addToFolder(f.name, apps, step) else d.makeFolder(f.name, apps, step)
                     method = r.method
-                    if (r.ok) { if (!f.existing) made++; moved += r.moved }
+                    if (r.ok) {
+                        if (!f.existing) made++; moved += r.moved
+                        apps.forEach { (p, l) -> if (l !in r.missing) movedPairs += f.name to p }
+                    }
                     else failed += if (f.existing) "${f.name}: 폴더에 앱을 넣지 못함" else "${f.name}: 폴더를 만들지 못함"
                     if (r.missing.isNotEmpty() && r.ok) failed += "${f.name}: 못 찾은 앱 - ${r.missing.joinToString()}"
                 }
                 d.goHome()
-                val rec = RunRecord(System.currentTimeMillis(), made, moved, failed, method)
+                val rec = RunRecord(System.currentTimeMillis(), made, moved, failed, method, movedPairs)
                 Store(this@OrganizerService).lastRun = rec
                 Bus.events.tryEmit(Bus.Event.ApplyDone(rec))
             } catch (e: LauncherDriver.CancelledException) {
-                val rec = RunRecord(System.currentTimeMillis(), made, moved, failed + "중간에 중지함", method)
+                val rec = RunRecord(System.currentTimeMillis(), made, moved, failed + "중간에 중지함", method, movedPairs)
                 Store(this@OrganizerService).lastRun = rec
                 Bus.events.tryEmit(Bus.Event.ApplyDone(rec))
             } catch (e: Exception) {

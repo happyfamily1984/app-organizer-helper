@@ -51,6 +51,8 @@ data class RunRecord(
     val appsMoved: Int,
     val failed: List<String>,
     val note: String,
+    /** 이번 실행에서 실제로 옮긴 앱 (폴더 이름 to 패키지). 저장하지 않음 */
+    val moved: List<Pair<String, String>> = emptyList(),
 )
 
 data class Settings(

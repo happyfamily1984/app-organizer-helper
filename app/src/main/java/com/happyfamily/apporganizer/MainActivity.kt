@@ -70,6 +70,7 @@ import com.happyfamily.apporganizer.ui.Dlg
 import com.happyfamily.apporganizer.ui.FolderEditScreen
 import com.happyfamily.apporganizer.ui.HomeScreen
 import com.happyfamily.apporganizer.ui.ListMode
+import com.happyfamily.apporganizer.ui.LooseScreen
 import com.happyfamily.apporganizer.ui.MoveSheetContent
 import com.happyfamily.apporganizer.ui.RecommendScreen
 import com.happyfamily.apporganizer.ui.Screen
@@ -162,6 +163,7 @@ class MainActivity : ComponentActivity() {
                 when (sc) {
                     Screen.Home -> HomeScreen(s, ::openAccessibility)
                     Screen.Recommend -> RecommendScreen(s)
+                    Screen.Loose -> LooseScreen(s)
                     is Screen.EditFolder -> FolderEditScreen(s, sc.id)
                     Screen.SettingsScreen -> SettingsScreen(s, ::openAccessibility, ::askNotify)
                     is Screen.AppList -> AppListScreen(s, sc.mode)
@@ -219,6 +221,13 @@ class MainActivity : ComponentActivity() {
                 onDismissRequest = close, title = { Text("앱을 종료하겠습니까?") },
                 confirmButton = { TextButton({ close(); finish() }) { Text("예") } },
                 dismissButton = { TextButton(close) { Text("아니오") } },
+                containerColor = Color.White,
+            )
+            Dlg.NeedScan -> AlertDialog(
+                onDismissRequest = close, title = { Text("먼저 한 번 분석이 필요해요") },
+                text = { Text("${s.surfaceName}의 폴더 구성과 흩어진 앱을 한 번 읽어야 해요. 그 뒤로는 다시 읽지 않고 바로 정리할 수 있어요.") },
+                confirmButton = { TextButton({ close(); if (s.accessOn) s.startRecommend() else s.dialog = Dlg.NeedAccess }) { Text("지금 분석") } },
+                dismissButton = { TextButton(close) { Text("취소") } },
                 containerColor = Color.White,
             )
             Dlg.NeedAccess -> AlertDialog(

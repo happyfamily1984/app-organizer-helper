@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CleaningServices
 import androidx.compose.material.icons.filled.Eco
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -113,7 +114,15 @@ fun HomeScreen(s: AppState, openAccess: () -> Unit) {
                 }
             }
             Gap(22)
-            GradientButton("추천 폴더 만들기", Icons.Filled.CleaningServices, enabled = !s.loading) { s.startRecommend() }
+            GradientButton("흩어진 앱 정리하기", Icons.Filled.CleaningServices, enabled = !s.loading) { s.openLoose() }
+            Gap(12)
+            OutlineButton("${s.surfaceName} 분석 후 추천", Icons.Filled.Refresh) { s.startRecommend() }
+            Gap(6)
+            Text(
+                if (s.validScan == null) "처음 한 번은 '분석 후 추천'으로 폴더 구성을 읽어 주세요."
+                else "흩어진 앱 정리는 화면을 다시 읽지 않고 바로 열려요. 폴더 구성을 바꿨다면 다시 분석하세요.",
+                fontSize = 13.sp, color = C.sub, modifier = Modifier.padding(horizontal = 6.dp)
+            )
             Gap(26)
             SectionTitle("내 정리 규칙") {
                 Box(

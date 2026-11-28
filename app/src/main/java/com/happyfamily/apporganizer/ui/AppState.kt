@@ -12,6 +12,7 @@ import com.happyfamily.apporganizer.data.AppRepository
 import com.happyfamily.apporganizer.data.Classifier
 import com.happyfamily.apporganizer.data.FolderPlan
 import com.happyfamily.apporganizer.data.Plan
+import com.happyfamily.apporganizer.data.ExistingFolder
 import com.happyfamily.apporganizer.data.RunRecord
 import com.happyfamily.apporganizer.data.Settings
 import com.happyfamily.apporganizer.data.Store
@@ -21,6 +22,7 @@ import com.happyfamily.apporganizer.service.OrganizerService
 sealed class Screen {
     data object Home : Screen()
     data object Recommend : Screen()
+    data object Loose : Screen()
     data class EditFolder(val id: String) : Screen()
     data object SettingsScreen : Screen()
     data class AppList(val mode: ListMode) : Screen()
@@ -30,6 +32,7 @@ enum class ListMode(val title: String) { EXCLUDED("정리에서 제외한 앱"),
 
 sealed class Dlg {
     data object Exit : Dlg()
+    data object NeedScan : Dlg()
     data object NeedAccess : Dlg()
     data object ConfirmApply : Dlg()
     data object ConfirmReRecommend : Dlg()
@@ -165,6 +168,55 @@ class AppState(private val ctx: Context) {
         updatePlan(p.copy(folders = p.folders.filter { it.id != id }, unassigned = p.unassigned + f.apps))
     }
 
+    // ───────── 흩어진 앱 바로 정리 (화면을 다시 읽지 않음) ─────────
+
+    /** 지금 정리 대상 화면의 분석 결과 */
+    val validScan get() = lastScan?.takeIf { it.surface == settings.target }
+
+    /** 자동 추천(true) / 직접 고르기(false) */
+    var looseAuto by mutableStateOf(true)
+
+    /** 폴더 밖에 흩어진 앱: 지난 분석 결과 + 그 뒤에 설치된 앱 */
+    fun loosePkgs(): List<String> {
+        val scan = validScan ?: return emptyList()
+        val inFolders = scan.folders.flatMap { it.pkgs }.toSet()
+        val fromScan = scan.homePkgs.filter { it in appMap }
+        val newer = apps.filter { it.installedAt > scan.time && it.pkg !in inFolders && it.pkg !in fromScan }.map { it.pkg }
+        return (fromScan + newer).filter { it !in excluded }
+    }
+
+    fun openLoose() {
+        if (validScan == null) { dialog = Dlg.NeedScan; return }
+        setLooseMode(looseAuto)
+        if (screen != Screen.Loose) go(Screen.Loose)
+    }
+
+    fun setLooseMode(auto: Boolean) {
+        looseAuto = auto
+        val scan = validScan ?: return
+        val loose = loosePkgs().mapNotNull { appMap[it] }
+        var p = Classifier.recommendWithExisting(loose, scan.folders, appMap, excluded, settings)
+        if (!auto) p = p.copy(folders = p.folders.filter { it.existing }.map { it.copy(apps = emptyList()) }, unassigned = loose.map { it.pkg })
+        updatePlan(p)
+    }
+
+    /** 옮긴 결과를 저장된 분석 결과에 반영 (다시 읽지 않아도 목록이 최신) */
+    private fun reflectMoves(moved: List<Pair<String, String>>) {
+        if (moved.isEmpty()) return
+        val scan = lastScan ?: return
+        val movedPkgs = moved.map { it.second }.toSet()
+        val folders = scan.folders.map { f -> f.copy(pkgs = f.pkgs + moved.filter { it.first == f.name }.map { it.second }) }.toMutableList()
+        moved.groupBy { it.first }.forEach { (name, list) ->
+            if (folders.none { it.name == name }) folders += ExistingFolder(name, list.map { it.second })
+        }
+        val home = scan.homePkgs.filter { it !in movedPkgs }
+        val ns = scan.copy(homePkgs = home, looseIcons = home.size, folders = folders, folderCount = folders.size)
+        lastScan = ns; store.lastScan = ns
+        plan?.let { p ->
+            updatePlan(p.copy(folders = p.folders.map { it.copy(apps = it.apps - movedPkgs, existing = it.existing || moved.any { m -> m.first == it.name }) }))
+        }
+    }
+
     /** 실제로 적용될 폴더 (기존 폴더는 넣을 앱이 있을 때만) */
     val activeFolders get() = plan?.folders?.filter { !it.existing || it.apps.isNotEmpty() }.orEmpty()
 
@@ -224,6 +276,7 @@ class AppState(private val ctx: Context) {
             }
             is Bus.Event.ApplyDone -> {
                 lastRun = e.record
+                reflectMoves(e.record.moved)
                 markAllKnown()
                 dialog = Dlg.Result(e.record)
             }

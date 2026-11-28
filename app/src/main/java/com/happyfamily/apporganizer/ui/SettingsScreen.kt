@@ -58,12 +58,12 @@ fun SettingsScreen(s: AppState, openAccess: () -> Unit, askNotify: () -> Unit) {
                 Gap(12)
                 Card(pad = 16.dp) {
                     ListRow({ IconTile(Icons.Filled.Apps, Color(0xFF7A5AF0), Color(0xFFEDE7FF), 54.dp) }, "정리할 화면", "앱스 화면은 위로 밀면 나오는 앱 목록이에요")
-                    Seg(listOf("앱스 화면", "홈 화면"), st.target) { s.saveSettings(st.copy(target = it)); s.lastScan = null; s.store.lastScan = null }
+                    Segmented(listOf("앱스 화면", "홈 화면"), st.target) { s.saveSettings(st.copy(target = it)); s.lastScan = null; s.store.lastScan = null }
                 }
                 Gap(12)
                 Card(pad = 16.dp) {
                     ListRow({ IconTile(Icons.Filled.Speed, C.green, C.greenSoft, 54.dp) }, "정리 속도", "느릴수록 실패가 적어요")
-                    Seg(listOf("빠름", "보통", "천천히"), st.speed) { s.saveSettings(st.copy(speed = it)) }
+                    Segmented(listOf("빠름", "보통", "천천히"), st.speed) { s.saveSettings(st.copy(speed = it)) }
                 }
                 Gap(26)
                 SectionTitle("정리 방식")
@@ -117,27 +117,6 @@ fun SettingsScreen(s: AppState, openAccess: () -> Unit, askNotify: () -> Unit) {
                     fontSize = 13.sp, color = C.sub, modifier = Modifier.padding(horizontal = 4.dp)
                 )
                 Gap(28)
-            }
-        }
-    }
-}
-
-@Composable
-private fun Seg(items: List<String>, sel: Int, onSel: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color(0xFFEDF1F3)).padding(4.dp)) {
-        items.forEachIndexed { i, t ->
-            val on = sel == i
-            Box(
-                Modifier.weight(1f)
-                    .then(if (on) Modifier.shadow(8.dp, RoundedCornerShape(50), spotColor = Color(0x5520B070)) else Modifier)
-                    .clip(RoundedCornerShape(50))
-                    .background(if (on) Brush.horizontalGradient(listOf(C.gradA, C.gradB)) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
-                    .clickable { onSel(i) }
-                    .padding(vertical = 11.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(t, fontSize = 17.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
-                    color = if (on) Color.White else C.sub, textAlign = TextAlign.Center)
             }
         }
     }

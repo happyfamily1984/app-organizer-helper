@@ -10,6 +10,8 @@ import com.happyfamily.apporganizer.data.ScanResult
 import com.happyfamily.apporganizer.ui.AppState
 import com.happyfamily.apporganizer.ui.C
 import com.happyfamily.apporganizer.ui.RecommendScreen
+import com.happyfamily.apporganizer.ui.LooseScreen
+import com.happyfamily.apporganizer.ui.HomeScreen
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -93,6 +95,24 @@ class RealDataTest {
         java.io.File("../shots/real_plan.txt").writeText(sb.toString())
         captureRoboImage("../shots/5_real_recommend.png") {
             MaterialTheme(colorScheme = lightColorScheme(primary = C.green)) { RecommendScreen(s) }
+        }
+    }
+
+    @Test fun looseScreen() {
+        val ctx = ApplicationProvider.getApplicationContext<android.app.Application>()
+        val s = AppState(ctx)
+        val all = folders.values.flatten() + loose
+        s.setLoaded(all.map { (p, l) -> AppItem(p, l, -1, null, 0) })
+        s.excluded = emptySet()
+        s.accessOn = true
+        s.lastScan = ScanResult(System.currentTimeMillis(), 2, 13, folders.size, loose.take(13).map { it.first }, "",
+            folders.map { (n, l) -> ExistingFolder(n, l.map { it.first }) }, 0)
+        s.openLoose()
+        captureRoboImage("../shots/6_loose.png") {
+            MaterialTheme(colorScheme = lightColorScheme(primary = C.green)) { LooseScreen(s) }
+        }
+        captureRoboImage("../shots/7_home2.png") {
+            MaterialTheme(colorScheme = lightColorScheme(primary = C.green)) { HomeScreen(s) {} }
         }
     }
 }

@@ -3,6 +3,7 @@ package com.happyfamily.apporganizer.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -247,3 +249,41 @@ fun Gap(h: Int) = Spacer(Modifier.height(h.dp))
 fun RowGap(w: Int) = Spacer(Modifier.width(w.dp))
 
 val Arrangement.gap12 get() = Arrangement.spacedBy(12.dp)
+
+@Composable
+fun Segmented(items: List<String>, sel: Int, onSel: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).background(Color(0xFFEDF1F3)).padding(4.dp)) {
+        items.forEachIndexed { i, t ->
+            val on = sel == i
+            Box(
+                Modifier.weight(1f)
+                    .then(if (on) Modifier.shadow(8.dp, RoundedCornerShape(50), spotColor = Color(0x5520B070)) else Modifier)
+                    .clip(RoundedCornerShape(50))
+                    .background(if (on) Brush.horizontalGradient(listOf(C.gradA, C.gradB)) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent)))
+                    .clickable { onSel(i) }
+                    .padding(vertical = 11.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(t, fontSize = 17.sp, fontWeight = if (on) FontWeight.ExtraBold else FontWeight.Medium,
+                    color = if (on) Color.White else C.sub, textAlign = TextAlign.Center)
+            }
+        }
+    }
+}
+
+@Composable
+fun OutlineButton(text: String, icon: ImageVector?, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.fillMaxWidth().height(54.dp)
+            .clip(RoundedCornerShape(50))
+            .background(C.card)
+            .border(2.dp, C.green, RoundedCornerShape(50))
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) { Icon(icon, null, tint = C.green, modifier = Modifier.size(22.dp)); Spacer(Modifier.width(10.dp)) }
+            Text(text, color = C.green, fontSize = 17.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
